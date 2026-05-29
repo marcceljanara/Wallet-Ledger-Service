@@ -1,9 +1,1309 @@
 {
   "openapi": "3.1.1",
   "info": {
-    "title": "API Title",
-    "version": "1.0"
+    "title": "Wallet Ledger Service API",
+    "description": "Backend API for a digital wallet and financial transaction system. Supports wallet management, fund transfers, ledger tracking, audit logging, and asynchronous event processing. Includes Admin endpoints for transaction monitoring and audit review.",
+    "version": "1.1.0",
+    "contact": {
+      "name": "Marccel Janara"
+    }
   },
-  "servers": [{ "url": "https://api.server.test/v1" }],
-  "paths": {}
+  "servers": [
+    {
+      "url": "http://localhost:8080/api/v1",
+      "description": "Local development server"
+    }
+  ],
+  "tags": [
+    { "name": "Auth", "description": "User registration, login, and logout" },
+    { "name": "Wallet", "description": "Wallet management and balance inquiry" },
+    { "name": "TopUp", "description": "Simulate adding funds to a wallet" },
+    { "name": "Transfer", "description": "Transfer funds between wallets" },
+    { "name": "Transaction", "description": "Transaction history and detail" },
+    { "name": "Ledger", "description": "Ledger entries for financial auditing" },
+    { "name": "Audit", "description": "Audit log of user activities" },
+    { "name": "Admin", "description": "Admin-only endpoints for monitoring and audit" }
+  ],
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register a new user",
+        "description": "Creates a new user account with role USER. A wallet is automatically created for the user upon successful registration.",
+        "operationId": "registerUser",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              },
+              "example": {
+                "email": "user@example.com",
+                "password": "SecureP@ssw0rd!",
+                "confirm_password": "SecureP@ssw0rd!"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User registered successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "User registered successfully",
+                  "data": {
+                    "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    "email": "user@example.com",
+                    "wallet_id": "WLT-3KF91XA2B7",
+                    "created_at": "2026-05-28T15:00:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Validation failed",
+                  "error_code": 400,
+                  "errors": [
+                    "email is required",
+                    "password must be at least 8 characters",
+                    "confirm_password must match password"
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Email already registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Email already registered",
+                  "error_code": 409,
+                  "errors": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login user",
+        "description": "Authenticates a user (USER or ADMIN) and sets a JWT token in an httpOnly cookie named `accessToken`. The JWT payload includes the user's role.",
+        "operationId": "loginUser",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              },
+              "example": {
+                "email": "user@example.com",
+                "password": "SecureP@ssw0rd!"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful. JWT set in httpOnly cookie `accessToken`.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "httpOnly cookie containing the JWT access token",
+                "schema": {
+                  "type": "string",
+                  "example": "accessToken=eyJhbGciOiJIUzI1NiIs...; Path=/; HttpOnly; SameSite=Strict"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "Login successful",
+                  "data": {
+                    "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    "email": "user@example.com",
+                    "role": "USER"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Invalid email or password",
+                  "error_code": 401,
+                  "errors": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Logout user",
+        "description": "Clears the JWT httpOnly cookie to log the user out.",
+        "operationId": "logoutUser",
+        "security": [{ "cookieAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Logout successful",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Expired cookie to clear the access token",
+                "schema": {
+                  "type": "string",
+                  "example": "accessToken=; Path=/; HttpOnly; Max-Age=0"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "Logout successful",
+                  "data": null
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/wallets/me": {
+      "get": {
+        "tags": ["Wallet"],
+        "summary": "Get current user's wallet",
+        "description": "Retrieves wallet information and balance for the authenticated user.",
+        "operationId": "getMyWallet",
+        "security": [{ "cookieAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Wallet retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "Wallet retrieved successfully",
+                  "data": {
+                    "wallet_id": "WLT-3KF91XA2B7",
+                    "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    "balance": "1500000.00",
+                    "currency": "IDR",
+                    "created_at": "2026-05-28T15:00:00Z",
+                    "updated_at": "2026-05-28T16:30:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "Wallet not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Wallet not found",
+                  "error_code": 404,
+                  "errors": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallets/topup": {
+      "post": {
+        "tags": ["TopUp"],
+        "summary": "Top up wallet balance",
+        "description": "Simulates adding funds to the authenticated user's wallet. Creates a TOPUP transaction and corresponding ledger entries. Supports idempotency via the `Idempotency-Key` header.",
+        "operationId": "topUpWallet",
+        "security": [{ "cookieAuth": [] }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopUpRequest"
+              },
+              "example": {
+                "amount": 500000
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Top up successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "Top up successful",
+                  "data": {
+                    "transaction_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                    "reference_no": "TXN-20260528-AX91KDM3",
+                    "type": "TOPUP",
+                    "status": "COMPLETED",
+                    "amount": "500000.00",
+                    "wallet_id": "WLT-3KF91XA2B7",
+                    "balance_after": "2000000.00",
+                    "created_at": "2026-05-28T16:45:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Validation failed",
+                  "error_code": 400,
+                  "errors": [
+                    "amount must be greater than 0"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/transfers": {
+      "post": {
+        "tags": ["Transfer"],
+        "summary": "Transfer funds between wallets",
+        "description": "Transfers funds from the authenticated user's wallet to a target wallet. Validates sufficient balance and target wallet existence. Creates TRANSFER transaction and double-entry ledger records (DEBIT on source, CREDIT on target). Supports idempotency via the `Idempotency-Key` header.",
+        "operationId": "transferFunds",
+        "security": [{ "cookieAuth": [] }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferRequest"
+              },
+              "example": {
+                "target_wallet_id": "WLT-9BZ42YR7E1",
+                "amount": 250000
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transfer successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "Transfer successful",
+                  "data": {
+                    "transaction_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                    "reference_no": "TXN-20260528-KQ82VN5P",
+                    "type": "TRANSFER",
+                    "status": "COMPLETED",
+                    "amount": "250000.00",
+                    "source_wallet_id": "WLT-3KF91XA2B7",
+                    "target_wallet_id": "WLT-9BZ42YR7E1",
+                    "balance_after": "1750000.00",
+                    "created_at": "2026-05-28T17:00:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error or insufficient balance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Insufficient balance",
+                  "error_code": 400,
+                  "errors": null
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "Target wallet not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Target wallet not found",
+                  "error_code": 404,
+                  "errors": null
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Cannot transfer to own wallet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Cannot transfer to your own wallet",
+                  "error_code": 422,
+                  "errors": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transactions": {
+      "get": {
+        "tags": ["Transaction"],
+        "summary": "Get transaction history",
+        "description": "Retrieves paginated transaction history for the authenticated user's wallet. Supports filtering by transaction type.",
+        "operationId": "getTransactions",
+        "security": [{ "cookieAuth": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based)",
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Filter by transaction type",
+            "schema": {
+              "type": "string",
+              "enum": ["TOPUP", "TRANSFER"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transactions retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "Transactions retrieved successfully",
+                  "data": {
+                    "transactions": [
+                      {
+                        "transaction_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                        "reference_no": "TXN-20260528-KQ82VN5P",
+                        "type": "TRANSFER",
+                        "status": "COMPLETED",
+                        "amount": "250000.00",
+                        "source_wallet_id": "WLT-3KF91XA2B7",
+                        "target_wallet_id": "WLT-9BZ42YR7E1",
+                        "created_at": "2026-05-28T17:00:00Z"
+                      }
+                    ],
+                    "pagination": {
+                      "current_page": 1,
+                      "per_page": 10,
+                      "total_items": 1,
+                      "total_pages": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/transactions/{transactionId}": {
+      "get": {
+        "tags": ["Transaction"],
+        "summary": "Get transaction detail",
+        "description": "Retrieves detailed information for a specific transaction, including associated ledger entries. Users can only view their own transactions.",
+        "operationId": "getTransactionDetail",
+        "security": [{ "cookieAuth": [] }],
+        "parameters": [
+          {
+            "name": "transactionId",
+            "in": "path",
+            "required": true,
+            "description": "UUID of the transaction",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction detail retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "Transaction detail retrieved successfully",
+                  "data": {
+                    "transaction_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                    "reference_no": "TXN-20260528-KQ82VN5P",
+                    "type": "TRANSFER",
+                    "status": "COMPLETED",
+                    "amount": "250000.00",
+                    "source_wallet_id": "WLT-3KF91XA2B7",
+                    "target_wallet_id": "WLT-9BZ42YR7E1",
+                    "created_at": "2026-05-28T17:00:00Z",
+                    "ledger_entries": [
+                      {
+                        "entry_id": "LED-AX82KD91NR",
+                        "wallet_id": "WLT-3KF91XA2B7",
+                        "entry_type": "DEBIT",
+                        "amount": "250000.00",
+                        "created_at": "2026-05-28T17:00:00Z"
+                      },
+                      {
+                        "entry_id": "LED-QN47BZ82TP",
+                        "wallet_id": "WLT-9BZ42YR7E1",
+                        "entry_type": "CREDIT",
+                        "amount": "250000.00",
+                        "created_at": "2026-05-28T17:00:00Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not authorized to view this transaction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "message": "You are not authorized to view this transaction",
+                  "error_code": 403,
+                  "errors": null
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Transaction not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Transaction not found",
+                  "error_code": 404,
+                  "errors": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ledger/entries": {
+      "get": {
+        "tags": ["Ledger"],
+        "summary": "Get ledger entries for current user's wallet",
+        "description": "Retrieves paginated ledger entries (DEBIT/CREDIT) for the authenticated user's wallet. Supports filtering by entry type.",
+        "operationId": "getLedgerEntries",
+        "security": [{ "cookieAuth": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based)",
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "entry_type",
+            "in": "query",
+            "description": "Filter by entry type",
+            "schema": {
+              "type": "string",
+              "enum": ["DEBIT", "CREDIT"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ledger entries retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "Ledger entries retrieved successfully",
+                  "data": {
+                    "entries": [
+                      {
+                        "entry_id": "LED-AX82KD91NR",
+                        "transaction_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                        "wallet_id": "WLT-3KF91XA2B7",
+                        "entry_type": "DEBIT",
+                        "amount": "250000.00",
+                        "created_at": "2026-05-28T17:00:00Z"
+                      }
+                    ],
+                    "pagination": {
+                      "current_page": 1,
+                      "per_page": 10,
+                      "total_items": 1,
+                      "total_pages": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/audit/logs": {
+      "get": {
+        "tags": ["Audit"],
+        "summary": "Get audit logs for current user",
+        "description": "Retrieves paginated audit logs for the authenticated user's own activities (login, transfer, topup, etc.).",
+        "operationId": "getAuditLogs",
+        "security": [{ "cookieAuth": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based)",
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit logs retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "Audit logs retrieved successfully",
+                  "data": {
+                    "logs": [
+                      {
+                        "log_id": "AUD-K82NRX91QP",
+                        "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                        "action": "TRANSFER",
+                        "ip_address": "192.168.1.100",
+                        "endpoint": "POST /api/v1/transfers",
+                        "created_at": "2026-05-28T17:00:00Z"
+                      }
+                    ],
+                    "pagination": {
+                      "current_page": 1,
+                      "per_page": 10,
+                      "total_items": 1,
+                      "total_pages": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/admin/transactions": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Monitor all transactions (Admin only)",
+        "description": "Retrieves paginated list of ALL transactions across the system. Supports filtering by transaction type and status. Only accessible by users with ADMIN role.",
+        "operationId": "adminGetAllTransactions",
+        "security": [{ "cookieAuth": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based)",
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Filter by transaction type",
+            "schema": {
+              "type": "string",
+              "enum": ["TOPUP", "TRANSFER"]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by transaction status",
+            "schema": {
+              "type": "string",
+              "enum": ["PENDING", "COMPLETED", "FAILED"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All transactions retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "Transactions retrieved successfully",
+                  "data": {
+                    "transactions": [
+                      {
+                        "transaction_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                        "reference_no": "TXN-20260528-KQ82VN5P",
+                        "type": "TRANSFER",
+                        "status": "COMPLETED",
+                        "amount": "250000.00",
+                        "source_wallet_id": "WLT-3KF91XA2B7",
+                        "target_wallet_id": "WLT-9BZ42YR7E1",
+                        "created_at": "2026-05-28T17:00:00Z"
+                      },
+                      {
+                        "transaction_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                        "reference_no": "TXN-20260528-AX91KDM3",
+                        "type": "TOPUP",
+                        "status": "COMPLETED",
+                        "amount": "500000.00",
+                        "source_wallet_id": null,
+                        "target_wallet_id": "WLT-3KF91XA2B7",
+                        "created_at": "2026-05-28T16:45:00Z"
+                      }
+                    ],
+                    "pagination": {
+                      "current_page": 1,
+                      "per_page": 10,
+                      "total_items": 2,
+                      "total_pages": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/admin/transactions/{transactionId}": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Get any transaction detail (Admin only)",
+        "description": "Retrieves detailed information for any transaction in the system, including associated ledger entries. Only accessible by users with ADMIN role.",
+        "operationId": "adminGetTransactionDetail",
+        "security": [{ "cookieAuth": [] }],
+        "parameters": [
+          {
+            "name": "transactionId",
+            "in": "path",
+            "required": true,
+            "description": "UUID of the transaction",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction detail retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "Transaction detail retrieved successfully",
+                  "data": {
+                    "transaction_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+                    "reference_no": "TXN-20260528-KQ82VN5P",
+                    "type": "TRANSFER",
+                    "status": "COMPLETED",
+                    "amount": "250000.00",
+                    "source_wallet_id": "WLT-3KF91XA2B7",
+                    "target_wallet_id": "WLT-9BZ42YR7E1",
+                    "created_at": "2026-05-28T17:00:00Z",
+                    "ledger_entries": [
+                      {
+                        "entry_id": "LED-AX82KD91NR",
+                        "wallet_id": "WLT-3KF91XA2B7",
+                        "entry_type": "DEBIT",
+                        "amount": "250000.00",
+                        "created_at": "2026-05-28T17:00:00Z"
+                      },
+                      {
+                        "entry_id": "LED-QN47BZ82TP",
+                        "wallet_id": "WLT-9BZ42YR7E1",
+                        "entry_type": "CREDIT",
+                        "amount": "250000.00",
+                        "created_at": "2026-05-28T17:00:00Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "Transaction not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Transaction not found",
+                  "error_code": 404,
+                  "errors": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/audit-logs": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Get all audit logs (Admin only)",
+        "description": "Retrieves paginated audit logs for ALL users across the system. Supports filtering by user_id and action. Only accessible by users with ADMIN role.",
+        "operationId": "adminGetAllAuditLogs",
+        "security": [{ "cookieAuth": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based)",
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "description": "Filter by user UUID",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "description": "Filter by action type",
+            "schema": {
+              "type": "string",
+              "enum": ["REGISTER", "LOGIN", "LOGOUT", "TOPUP", "TRANSFER"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All audit logs retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "Audit logs retrieved successfully",
+                  "data": {
+                    "logs": [
+                      {
+                        "log_id": "AUD-K82NRX91QP",
+                        "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                        "action": "TRANSFER",
+                        "ip_address": "192.168.1.100",
+                        "endpoint": "POST /api/v1/transfers",
+                        "created_at": "2026-05-28T17:00:00Z"
+                      },
+                      {
+                        "log_id": "AUD-P19VX73BQN",
+                        "user_id": "f1e2d3c4-b5a6-7890-fedc-ba9876543210",
+                        "action": "LOGIN",
+                        "ip_address": "10.0.0.55",
+                        "endpoint": "POST /api/v1/auth/login",
+                        "created_at": "2026-05-28T16:30:00Z"
+                      }
+                    ],
+                    "pagination": {
+                      "current_page": 1,
+                      "per_page": 10,
+                      "total_items": 2,
+                      "total_pages": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/admin/users": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "List all users (Admin only)",
+        "description": "Retrieves paginated list of all registered users with their wallet information. Only accessible by users with ADMIN role.",
+        "operationId": "adminGetAllUsers",
+        "security": [{ "cookieAuth": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based)",
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of items per page",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Users retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "example": {
+                  "success": true,
+                  "message": "Users retrieved successfully",
+                  "data": {
+                    "users": [
+                      {
+                        "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                        "email": "user@example.com",
+                        "role": "USER",
+                        "wallet_id": "WLT-3KF91XA2B7",
+                        "balance": "1500000.00",
+                        "created_at": "2026-05-28T15:00:00Z"
+                      }
+                    ],
+                    "pagination": {
+                      "current_page": 1,
+                      "per_page": 10,
+                      "total_items": 1,
+                      "total_pages": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "accessToken",
+        "description": "JWT access token stored in an httpOnly cookie. JWT payload includes user role."
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "description": "Unique key to ensure idempotent request processing. If a request with the same key has already been processed, the original response is returned. Use a UUID v4 or similar unique identifier.",
+        "schema": {
+          "type": "string",
+          "format": "uuid",
+          "example": "550e8400-e29b-41d4-a716-446655440000"
+        }
+      }
+    },
+    "schemas": {
+      "SuccessResponse": {
+        "type": "object",
+        "required": ["success", "message", "data"],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Operation successful"
+          },
+          "data": {
+            "description": "Response payload. Can be an object, array, string, number, boolean, or null."
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["success", "message", "error_code", "errors"],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "message": {
+            "type": "string",
+            "example": "Operation failed"
+          },
+          "error_code": {
+            "type": "integer",
+            "example": 400
+          },
+          "errors": {
+            "description": "Array of validation error strings, a single error string, or null",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": ["email", "password", "confirm_password"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "User email address",
+            "example": "user@example.com"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "description": "User password (min 8 characters, must contain uppercase, lowercase, number, and special character)",
+            "example": "SecureP@ssw0rd!"
+          },
+          "confirm_password": {
+            "type": "string",
+            "description": "Must match the password field",
+            "example": "SecureP@ssw0rd!"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "user@example.com"
+          },
+          "password": {
+            "type": "string",
+            "example": "SecureP@ssw0rd!"
+          }
+        }
+      },
+      "TopUpRequest": {
+        "type": "object",
+        "required": ["amount"],
+        "properties": {
+          "amount": {
+            "type": "number",
+            "minimum": 1,
+            "description": "Amount to top up (must be greater than 0)",
+            "example": 500000
+          }
+        }
+      },
+      "TransferRequest": {
+        "type": "object",
+        "required": ["target_wallet_id", "amount"],
+        "properties": {
+          "target_wallet_id": {
+            "type": "string",
+            "description": "Target wallet ID in format WLT-XXXXXXXXXX",
+            "pattern": "^WLT-[A-Z0-9]{8,12}$",
+            "example": "WLT-9BZ42YR7E1"
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 1,
+            "description": "Amount to transfer (must be greater than 0)",
+            "example": 250000
+          }
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Authentication required or token expired",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "success": false,
+              "message": "Unauthorized: please login first",
+              "error_code": 401,
+              "errors": null
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Insufficient permissions. Admin role required.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "success": false,
+              "message": "Forbidden: admin access required",
+              "error_code": 403,
+              "errors": null
+            }
+          }
+        }
+      }
+    }
+  }
 }

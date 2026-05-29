@@ -1,0 +1,10 @@
+CREATE TABLE wallets (
+    id VARCHAR(20) PRIMARY KEY,
+    user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    balance DECIMAL(18,2) NOT NULL DEFAULT 0.00 CHECK (balance >= 0),
+    currency VARCHAR(3) NOT NULL DEFAULT 'IDR',
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_wallets_user_id ON wallets(user_id);
