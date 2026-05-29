@@ -117,7 +117,11 @@ func main() {
 		protected.Use(middleware.JWTAuth(cfg.JWTSecret))
 		protected.Use(middleware.AuditLog(safeRabbitCh))
 		{
-			protected.POST("/auth/logout", authHandler.Logout)
+			// Auth protected routes
+			authProtected := protected.Group("/auth")
+			{
+				authProtected.POST("/logout", authHandler.Logout)
+			}
 
 			protected.GET("/wallets/me", walletHandler.GetMyWallet)
 
