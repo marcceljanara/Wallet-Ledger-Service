@@ -15,6 +15,7 @@ import (
 	"marcceljanara/wallet-ledger-service/internal/middleware"
 	"marcceljanara/wallet-ledger-service/internal/repository"
 	"marcceljanara/wallet-ledger-service/internal/service"
+	"marcceljanara/wallet-ledger-service/internal/utils"
 	"marcceljanara/wallet-ledger-service/internal/worker"
 )
 
@@ -62,6 +63,8 @@ func main() {
 	defer rabbitCh.Close()
 	defer rabbitConn.Close()
 
+	safeRabbitCh := utils.NewSafeChannel(rabbitCh)
+
 	// 3. Initialize repositories
 	userRepo := repository.NewUserRepository(pool)
 	walletRepo := repository.NewWalletRepository(pool)
@@ -71,13 +74,13 @@ func main() {
 
 	// 4. Initialize services
 	auditService := service.NewAuditService(auditRepo)
-	authService := service.NewAuthService(userRepo, walletRepo, pool, cfg, rabbitCh)
+	authService := service.NewAuthService(userRepo, walletRepo, pool, cfg, safeRabbitCh)
 	walletService := service.NewWalletService(walletRepo)
-	transactionService := service.NewTransactionService(walletRepo, transactionRepo, ledgerRepo, pool, rabbitCh)
+	transactionService := service.NewTransactionService(walletRepo, transactionRepo, ledgerRepo, pool, safeRabbitCh)
 	ledgerService := service.NewLedgerService(walletRepo, ledgerRepo)
 
 	// 5. Initialize handlers
-	authHandler := handler.NewAuthHandler(authService, int(cfg.JWTExpiration.Seconds()))
+	authHandler := handler.NewAuthHandler(authService, int(cfg.JWTExpiration.Seconds()), cfg.CookieSecure)
 	walletHandler := handler.NewWalletHandler(walletService)
 	transactionHandler := handler.NewTransactionHandler(transactionService)
 	ledgerHandler := handler.NewLedgerHandler(ledgerService)
@@ -112,7 +115,7 @@ func main() {
 		// Protected routes
 		protected := v1.Group("")
 		protected.Use(middleware.JWTAuth(cfg.JWTSecret))
-		protected.Use(middleware.AuditLog(rabbitCh))
+		protected.Use(middleware.AuditLog(safeRabbitCh))
 		{
 			protected.POST("/auth/logout", authHandler.Logout)
 

@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"marcceljanara/wallet-ledger-service/internal/utils"
 )
 
 type AuditEventMessage struct {
@@ -28,7 +29,7 @@ type WalletEvent struct {
 	Endpoint  string            `json:"endpoint"`
 }
 
-func AuditLog(rabbitCh *amqp.Channel) gin.HandlerFunc {
+func AuditLog(rabbitCh *utils.SafeChannel) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 

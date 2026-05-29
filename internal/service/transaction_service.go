@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"marcceljanara/wallet-ledger-service/internal/dto"
 	"marcceljanara/wallet-ledger-service/internal/model"
 	"marcceljanara/wallet-ledger-service/internal/repository"
@@ -37,7 +36,7 @@ type transactionService struct {
 	transactionRepo repository.TransactionRepository
 	ledgerRepo      repository.LedgerRepository
 	pool            TxBeginner
-	rabbitCh        *amqp.Channel
+	rabbitCh        *utils.SafeChannel
 }
 
 func NewTransactionService(
@@ -45,7 +44,7 @@ func NewTransactionService(
 	transactionRepo repository.TransactionRepository,
 	ledgerRepo repository.LedgerRepository,
 	pool TxBeginner,
-	rabbitCh *amqp.Channel,
+	rabbitCh *utils.SafeChannel,
 ) TransactionService {
 	return &transactionService{
 		walletRepo:      walletRepo,
@@ -79,7 +78,10 @@ func (s *transactionService) TopUp(ctx context.Context, userID uuid.UUID, req dt
 		return nil, ErrWalletNotFound
 	}
 
-	txRef := utils.GenerateTransactionRef()
+	txRef, err := utils.GenerateTransactionRef()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate transaction reference: %w", err)
+	}
 	txID := uuid.New()
 
 	txn := &model.Transaction{
@@ -104,7 +106,10 @@ func (s *transactionService) TopUp(ctx context.Context, userID uuid.UUID, req dt
 		return nil, err
 	}
 
-	ledgerID := utils.GenerateLedgerEntryID()
+	ledgerID, err := utils.GenerateLedgerEntryID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate ledger entry ID: %w", err)
+	}
 	ledgerEntry := &model.LedgerEntry{
 		ID:            ledgerID,
 		TransactionID: txn.ID,
@@ -217,7 +222,10 @@ func (s *transactionService) Transfer(ctx context.Context, userID uuid.UUID, req
 		return nil, ErrInsufficientBalance
 	}
 
-	txRef := utils.GenerateTransactionRef()
+	txRef, err := utils.GenerateTransactionRef()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate transaction reference: %w", err)
+	}
 	txID := uuid.New()
 
 	txn := &model.Transaction{
@@ -248,7 +256,10 @@ func (s *transactionService) Transfer(ctx context.Context, userID uuid.UUID, req
 		return nil, err
 	}
 
-	debitID := utils.GenerateLedgerEntryID()
+	debitID, err := utils.GenerateLedgerEntryID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate ledger entry ID: %w", err)
+	}
 	debitEntry := &model.LedgerEntry{
 		ID:            debitID,
 		TransactionID: txn.ID,
@@ -262,7 +273,10 @@ func (s *transactionService) Transfer(ctx context.Context, userID uuid.UUID, req
 		return nil, err
 	}
 
-	creditID := utils.GenerateLedgerEntryID()
+	creditID, err := utils.GenerateLedgerEntryID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate ledger entry ID: %w", err)
+	}
 	creditEntry := &model.LedgerEntry{
 		ID:            creditID,
 		TransactionID: txn.ID,

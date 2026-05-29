@@ -32,13 +32,12 @@ type AuthService interface {
 	Login(ctx context.Context, req dto.LoginRequest) (*dto.LoginResponse, string, error)
 	GetAllUsers(ctx context.Context, pagination dto.PaginationRequest) (*dto.AdminUserListResponse, error)
 }
-
 type authService struct {
 	userRepo   repository.UserRepository
 	walletRepo repository.WalletRepository
 	pool       TxBeginner
 	cfg        *config.Config
-	rabbitCh   *amqp.Channel
+	rabbitCh   *utils.SafeChannel
 }
 
 func NewAuthService(
@@ -46,7 +45,7 @@ func NewAuthService(
 	walletRepo repository.WalletRepository,
 	pool TxBeginner,
 	cfg *config.Config,
-	rabbitCh *amqp.Channel,
+	rabbitCh *utils.SafeChannel,
 ) AuthService {
 	return &authService{
 		userRepo:   userRepo,
@@ -82,8 +81,10 @@ func (s *authService) Register(ctx context.Context, req dto.RegisterRequest) (*d
 		return nil, err
 	}
 
-	walletID := utils.GenerateWalletID()
-
+	walletID, err := utils.GenerateWalletID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate wallet ID: %w", err)
+	}
 	wallet := &model.Wallet{
 		ID:        walletID,
 		UserID:    user.ID,
@@ -188,7 +189,7 @@ func (s *authService) GetAllUsers(ctx context.Context, pagination dto.Pagination
 	}, nil
 }
 
-func publishEvent(ctx context.Context, ch *amqp.Channel, eventType string, userID string, ipAddress, endpoint string, data any) error {
+func publishEvent(ctx context.Context, ch *utils.SafeChannel, eventType string, userID string, ipAddress, endpoint string, data any) error {
 	if ch == nil {
 		return nil
 	}

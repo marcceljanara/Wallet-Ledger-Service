@@ -15,6 +15,7 @@ type Config struct {
 	RabbitMQURL   string        `mapstructure:"RABBITMQ_URL"`
 	JWTSecret     string        `mapstructure:"JWT_SECRET"`
 	JWTExpiration time.Duration `mapstructure:"JWT_EXPIRATION"`
+	CookieSecure  bool          `mapstructure:"COOKIE_SECURE"`
 }
 
 func Load() (*Config, error) {
@@ -26,13 +27,15 @@ func Load() (*Config, error) {
 	// Set defaults
 	viper.SetDefault("SERVER_PORT", "8080")
 	viper.SetDefault("JWT_EXPIRATION", "24h")
+	viper.SetDefault("COOKIE_SECURE", true)
 
 	cfg := &Config{
-		ServerPort:  viper.GetString("SERVER_PORT"),
-		DatabaseURL: viper.GetString("DATABASE_URL"),
-		RedisURL:    viper.GetString("REDIS_URL"),
-		RabbitMQURL: viper.GetString("RABBITMQ_URL"),
-		JWTSecret:   viper.GetString("JWT_SECRET"),
+		ServerPort:   viper.GetString("SERVER_PORT"),
+		DatabaseURL:  viper.GetString("DATABASE_URL"),
+		RedisURL:     viper.GetString("REDIS_URL"),
+		RabbitMQURL:  viper.GetString("RABBITMQ_URL"),
+		JWTSecret:    viper.GetString("JWT_SECRET"),
+		CookieSecure: viper.GetBool("COOKIE_SECURE"),
 	}
 
 	// Parse duration

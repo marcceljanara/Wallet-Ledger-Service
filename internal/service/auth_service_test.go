@@ -15,6 +15,7 @@ import (
 	"marcceljanara/wallet-ledger-service/internal/mocks"
 	"marcceljanara/wallet-ledger-service/internal/model"
 	"marcceljanara/wallet-ledger-service/internal/service"
+	"marcceljanara/wallet-ledger-service/internal/utils"
 )
 
 type mockTx struct {
@@ -97,4 +98,95 @@ func TestAuthService_Register_EmailConflict(t *testing.T) {
 	})
 
 	assert.ErrorIs(t, err, service.ErrEmailConflict)
+}
+
+func TestAuthService_Login_Success(t *testing.T) {
+	mockUserRepo := mocks.NewUserRepository(t)
+	mockWalletRepo := mocks.NewWalletRepository(t)
+
+	cfg := &config.Config{
+		JWTSecret:     "secret",
+		JWTExpiration: 10 * time.Minute,
+	}
+
+	userID := uuid.New()
+	pwdHash, _ := utils.HashPassword("password123")
+
+	mockUserRepo.On("FindByEmail", mock.Anything, "test@example.com").Return(&model.User{
+		ID:           userID,
+		Email:        "test@example.com",
+		PasswordHash: pwdHash,
+		Role:         model.UserRoleUser,
+	}, nil)
+
+	svc := service.NewAuthService(mockUserRepo, mockWalletRepo, nil, cfg, nil)
+
+	res, token, err := svc.Login(context.Background(), dto.LoginRequest{
+		Email:    "test@example.com",
+		Password: "password123",
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, res)
+	assert.NotEmpty(t, token)
+	assert.Equal(t, "test@example.com", res.Email)
+}
+
+func TestAuthService_Login_InvalidPassword(t *testing.T) {
+	mockUserRepo := mocks.NewUserRepository(t)
+	mockWalletRepo := mocks.NewWalletRepository(t)
+
+	pwdHash, _ := utils.HashPassword("password123")
+
+	mockUserRepo.On("FindByEmail", mock.Anything, "test@example.com").Return(&model.User{
+		ID:           uuid.New(),
+		Email:        "test@example.com",
+		PasswordHash: pwdHash,
+		Role:         model.UserRoleUser,
+	}, nil)
+
+	svc := service.NewAuthService(mockUserRepo, mockWalletRepo, nil, nil, nil)
+
+	_, _, err := svc.Login(context.Background(), dto.LoginRequest{
+		Email:    "test@example.com",
+		Password: "wrongpassword",
+	})
+
+	assert.ErrorIs(t, err, service.ErrInvalidCredentials)
+}
+
+func TestAuthService_GetAllUsers_Success(t *testing.T) {
+	mockUserRepo := mocks.NewUserRepository(t)
+	mockWalletRepo := mocks.NewWalletRepository(t)
+
+	userID := uuid.New()
+	mockUsers := []model.UserWithWallet{
+		{
+			User: model.User{
+				ID:        userID,
+				Email:     "user1@example.com",
+				Role:      model.UserRoleUser,
+				CreatedAt: time.Now(),
+			},
+			WalletID:      "WLT-USER1",
+			WalletBalance: decimal.NewFromInt(100),
+		},
+	}
+
+	mockUserRepo.On("FindAll", mock.Anything, 10, 0).Return(mockUsers, 1, nil)
+
+	svc := service.NewAuthService(mockUserRepo, mockWalletRepo, nil, nil, nil)
+
+	res, err := svc.GetAllUsers(context.Background(), dto.PaginationRequest{
+		Page:  1,
+		Limit: 10,
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, res)
+	assert.Len(t, res.Users, 1)
+	assert.Equal(t, "user1@example.com", res.Users[0].Email)
+	assert.Equal(t, "WLT-USER1", res.Users[0].WalletID)
+	assert.Equal(t, decimal.NewFromInt(100), res.Users[0].Balance)
+	assert.Equal(t, 1, res.Pagination.TotalItems)
 }

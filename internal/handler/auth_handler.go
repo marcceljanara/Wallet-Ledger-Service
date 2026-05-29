@@ -13,12 +13,14 @@ import (
 type AuthHandler struct {
 	authService service.AuthService
 	jwtExpiry   int // maxAge in seconds
+	secure      bool
 }
 
-func NewAuthHandler(authService service.AuthService, jwtExpiry int) *AuthHandler {
+func NewAuthHandler(authService service.AuthService, jwtExpiry int, secure bool) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
 		jwtExpiry:   jwtExpiry,
+		secure:      secure,
 	}
 }
 
@@ -60,14 +62,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("accessToken", token, h.jwtExpiry, "/", "", false, true)
+	c.SetCookie("accessToken", token, h.jwtExpiry, "/", "", h.secure, true)
 
 	utils.WriteSuccess(c, http.StatusOK, "Login successful", res)
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
 	c.SetSameSite(http.SameSiteStrictMode)
-	c.SetCookie("accessToken", "", -1, "/", "", false, true)
+	c.SetCookie("accessToken", "", -1, "/", "", h.secure, true)
 
 	utils.WriteSuccess(c, http.StatusOK, "Logout successful", nil)
 }

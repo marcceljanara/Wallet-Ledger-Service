@@ -27,8 +27,12 @@ func NewAuditService(auditRepo repository.AuditRepository) AuditService {
 }
 
 func (s *auditService) CreateLog(ctx context.Context, log *model.AuditLog) error {
-	log.ID = utils.GenerateAuditLogID()
-	_, err := s.auditRepo.Create(ctx, log)
+	id, err := utils.GenerateAuditLogID()
+	if err != nil {
+		return err
+	}
+	log.ID = id
+	_, err = s.auditRepo.Create(ctx, log)
 	return err
 }
 
