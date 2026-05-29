@@ -1,7 +1,10 @@
-.PHONY: run build test sqlc migrate-up migrate-down mockery
+.PHONY: run build test sqlc migrate-up migrate-down mockery seed
 
 run:
 	go run ./cmd/server
+
+seed:
+	go run ./cmd/seed
 
 build:
 	go build -o bin/server ./cmd/server

@@ -21,7 +21,6 @@ func init() {
 	}
 }
 
-
 func FormatValidationErrors(err error) []string {
 	var errs []string
 	if valErrs, ok := err.(validator.ValidationErrors); ok {
