@@ -1,0 +1,9 @@
+plan.txt
+plan2.txt
+issues.md
+.agents
+.env
+bin/
+tmp/
+internal/repository/sqlc/
+internal/mocks/
