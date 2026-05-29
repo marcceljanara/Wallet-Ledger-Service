@@ -99,6 +99,7 @@ func main() {
 	r := gin.New()
 
 	// Global middleware
+	r.Use(middleware.CORS())
 	r.Use(gin.Recovery())
 	r.Use(gin.Logger())
 	r.Use(middleware.RateLimit(redisClient, 100, time.Minute))
