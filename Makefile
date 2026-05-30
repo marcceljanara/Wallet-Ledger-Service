@@ -7,7 +7,7 @@ seed:
 	go run ./cmd/seed
 
 build:
-	go build -o bin/server ./cmd/server
+	go build -o bin/server.exe ./cmd/server
 
 test:
 	go test ./... -v -cover
