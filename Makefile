@@ -1,4 +1,8 @@
+include .env
+export
+
 .PHONY: run build test sqlc migrate-up migrate-down mockery seed
+
 
 run:
 	go run ./cmd/server
