@@ -18,8 +18,19 @@ func NewRabbitMQConnection(rabbitMQURL string) (*amqp.Connection, *amqp.Channel,
 		return nil, nil, fmt.Errorf("failed to open a channel: %w", err)
 	}
 
+	err = DeclareExchangeAndQueues(ch)
+	if err != nil {
+		ch.Close()
+		conn.Close()
+		return nil, nil, fmt.Errorf("failed to declare exchanges and queues: %w", err)
+	}
+
+	return conn, ch, nil
+}
+
+func DeclareExchangeAndQueues(ch *amqp.Channel) error {
 	// Declare topic exchange
-	err = ch.ExchangeDeclare(
+	err := ch.ExchangeDeclare(
 		"wallet_events", // name
 		"topic",         // type
 		true,            // durable
@@ -29,9 +40,7 @@ func NewRabbitMQConnection(rabbitMQURL string) (*amqp.Connection, *amqp.Channel,
 		nil,             // arguments
 	)
 	if err != nil {
-		ch.Close()
-		conn.Close()
-		return nil, nil, fmt.Errorf("failed to declare exchange: %w", err)
+		return fmt.Errorf("failed to declare exchange: %w", err)
 	}
 
 	queues := []string{
@@ -50,9 +59,7 @@ func NewRabbitMQConnection(rabbitMQURL string) (*amqp.Connection, *amqp.Channel,
 			nil,   // arguments
 		)
 		if err != nil {
-			ch.Close()
-			conn.Close()
-			return nil, nil, fmt.Errorf("failed to declare queue %s: %w", qName, err)
+			return fmt.Errorf("failed to declare queue %s: %w", qName, err)
 		}
 
 		err = ch.QueueBind(
@@ -63,11 +70,9 @@ func NewRabbitMQConnection(rabbitMQURL string) (*amqp.Connection, *amqp.Channel,
 			nil,
 		)
 		if err != nil {
-			ch.Close()
-			conn.Close()
-			return nil, nil, fmt.Errorf("failed to bind queue %s: %w", qName, err)
+			return fmt.Errorf("failed to bind queue %s: %w", qName, err)
 		}
 	}
 
-	return conn, ch, nil
+	return nil
 }

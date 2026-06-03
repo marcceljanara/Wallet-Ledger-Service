@@ -11,16 +11,17 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"marcceljanara/wallet-ledger-service/internal/model"
 	"marcceljanara/wallet-ledger-service/internal/service"
+	"marcceljanara/wallet-ledger-service/internal/utils"
 )
 
 type AuditWorker struct {
-	channel      *amqp.Channel
+	rabbitCh     *utils.SafeChannel
 	auditService service.AuditService
 }
 
-func NewAuditWorker(channel *amqp.Channel, auditService service.AuditService) *AuditWorker {
+func NewAuditWorker(rabbitCh *utils.SafeChannel, auditService service.AuditService) *AuditWorker {
 	return &AuditWorker{
-		channel:      channel,
+		rabbitCh:     rabbitCh,
 		auditService: auditService,
 	}
 }
@@ -35,7 +36,36 @@ type WalletEventMsg struct {
 }
 
 func (w *AuditWorker) Start(ctx context.Context) {
-	msgs, err := w.channel.Consume(
+	slog.Info("Audit worker starting")
+
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("Audit worker shutting down")
+			return
+		default:
+		}
+
+		ch, err := w.rabbitCh.NewChannel()
+		if err != nil {
+			slog.Error("Audit worker failed to create channel, retrying...", "error", err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(5 * time.Second):
+				continue
+			}
+		}
+
+		slog.Info("Audit worker acquired channel, entering consume loop")
+		w.consumeLoop(ctx, ch)
+	}
+}
+
+func (w *AuditWorker) consumeLoop(ctx context.Context, ch *amqp.Channel) {
+	defer ch.Close()
+
+	msgs, err := ch.Consume(
 		"audit_queue",
 		"",
 		false,
@@ -49,12 +79,9 @@ func (w *AuditWorker) Start(ctx context.Context) {
 		return
 	}
 
-	slog.Info("Audit worker started successfully")
-
 	for {
 		select {
 		case <-ctx.Done():
-			slog.Info("Audit worker shutting down")
 			return
 		case msg, ok := <-msgs:
 			if !ok {
