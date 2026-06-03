@@ -50,7 +50,8 @@ Backend API for a digital wallet and financial transaction system. Supports wall
   - Review all system-wide audit logs.
 - **Automated Database Migrations**: Uses `golang-migrate` to manage database schema updates.
 - **Database Seeder**: Pre-populate the database with a default Admin account for testing.
-- **Asynchronous Workers**: Independent consumers processing queues for Audit, Notification, and Analytics via RabbitMQ.
+- **Asynchronous Workers**: Independent consumers processing queues for Audit, Notification, and Analytics via RabbitMQ. The Notification Worker formats and saves events into persistent user notifications and streams them in real-time.
+- **Push & Real-time Notifications**: Persistently logs notifications (e.g. transfer, top-up, registration) for the user, with endpoints to mark as read and clear. Streams notifications instantly to the user interface using Server-Sent Events (SSE) backed by Redis Pub/Sub.
 - **Graceful Shutdown**: Stops the HTTP server and workers safely, closing database pool connections without interrupting ongoing requests.
 
 ---
@@ -222,8 +223,18 @@ erDiagram
         timestamp_with_tz created_at
     }
 
+    notifications {
+        uuid id PK
+        uuid user_id FK
+        varchar title
+        text message
+        boolean is_read
+        timestamp_with_tz created_at
+    }
+
     users ||--o| wallets : "has one"
     users ||--o{ audit_logs : "triggers"
+    users ||--o{ notifications : "receives"
     wallets ||--o{ transactions : "as source"
     wallets ||--o{ transactions : "as target"
     transactions ||--o{ ledger_entries : "generates"
@@ -406,6 +417,10 @@ Requires a valid `accessToken` cookie.
 | `GET` | `/api/v1/transactions/:transactionId` | — | View details of a specific transaction + ledger records |
 | `GET` | `/api/v1/ledger/entries` | — | Paginated ledger history (query params: `page`, `limit`, `entry_type`) |
 | `GET` | `/api/v1/audit/logs` | — | Paginated audit trails of user's own actions |
+| `GET` | `/api/v1/notifications` | — | Paginated list of notifications for the user |
+| `PATCH` | `/api/v1/notifications/:id/read` | — | Mark a specific notification as read |
+| `DELETE` | `/api/v1/notifications` | — | Clear all notifications for the user |
+| `GET` | `/api/v1/notifications/stream` | — | Server-Sent Events (SSE) real-time notification stream |
 
 ### Admin Endpoints
 
