@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 
-
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/shopspring/decimal"
@@ -83,9 +82,13 @@ func (w *NotificationWorker) Start(ctx context.Context) {
 
 			if err := w.processMessage(ctx, msg); err != nil {
 				slog.Error("failed to process notification message", "error", err)
-				_ = msg.Nack(false, true)
+				if nackErr := msg.Nack(false, true); nackErr != nil {
+					slog.Error("failed to nack notification message", "error", nackErr)
+				}
 			} else {
-				_ = msg.Ack(false)
+				if ackErr := msg.Ack(false); ackErr != nil {
+					slog.Error("failed to ack notification message", "error", ackErr)
+				}
 			}
 		}
 	}

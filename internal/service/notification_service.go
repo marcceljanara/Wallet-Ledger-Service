@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -37,11 +38,16 @@ func (s *notificationService) CreateAndPushNotification(ctx context.Context, use
 		return nil, err
 	}
 
-	// Push notification to Redis Pub/Sub
+	// Push notification to Redis Pub/Sub for real-time SSE delivery.
+	// This is best-effort: failure is logged but does not affect the DB write.
 	channelName := fmt.Sprintf("user:notifications:%s", userID.String())
 	payload, err := json.Marshal(n)
-	if err == nil {
-		_ = s.redisClient.Publish(ctx, channelName, payload).Err()
+	if err != nil {
+		slog.Error("failed to marshal notification for redis publish", "error", err, "user_id", userID)
+		return n, nil
+	}
+	if err := s.redisClient.Publish(ctx, channelName, payload).Err(); err != nil {
+		slog.Error("failed to publish notification to redis", "error", err, "user_id", userID)
 	}
 
 	return n, nil
