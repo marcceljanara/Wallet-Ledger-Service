@@ -5,27 +5,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/shopspring/decimal"
 	"marcceljanara/wallet-ledger-service/internal/repository"
 	"marcceljanara/wallet-ledger-service/internal/service"
+	"marcceljanara/wallet-ledger-service/internal/utils"
 )
 
 type NotificationWorker struct {
-	channel    *amqp.Channel
+	rabbitCh   *utils.SafeChannel
 	notifServ  service.NotificationService
 	walletRepo repository.WalletRepository
 }
 
 func NewNotificationWorker(
-	channel *amqp.Channel,
+	rabbitCh *utils.SafeChannel,
 	notifServ service.NotificationService,
 	walletRepo repository.WalletRepository,
 ) *NotificationWorker {
 	return &NotificationWorker{
-		channel:    channel,
+		rabbitCh:   rabbitCh,
 		notifServ:  notifServ,
 		walletRepo: walletRepo,
 	}
@@ -53,7 +55,36 @@ type TransferEventData struct {
 }
 
 func (w *NotificationWorker) Start(ctx context.Context) {
-	msgs, err := w.channel.Consume(
+	slog.Info("Notification worker starting")
+
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("Notification worker shutting down")
+			return
+		default:
+		}
+
+		ch, err := w.rabbitCh.NewChannel()
+		if err != nil {
+			slog.Error("Notification worker failed to create channel, retrying...", "error", err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(5 * time.Second):
+				continue
+			}
+		}
+
+		slog.Info("Notification worker acquired channel, entering consume loop")
+		w.consumeLoop(ctx, ch)
+	}
+}
+
+func (w *NotificationWorker) consumeLoop(ctx context.Context, ch *amqp.Channel) {
+	defer ch.Close()
+
+	msgs, err := ch.Consume(
 		"notification_queue",
 		"",
 		false,
@@ -67,12 +98,9 @@ func (w *NotificationWorker) Start(ctx context.Context) {
 		return
 	}
 
-	slog.Info("Notification worker started successfully")
-
 	for {
 		select {
 		case <-ctx.Done():
-			slog.Info("Notification worker shutting down")
 			return
 		case msg, ok := <-msgs:
 			if !ok {

@@ -55,15 +55,13 @@ func main() {
 	defer redisClient.Close()
 
 	// 2d. RabbitMQ
-	rabbitConn, rabbitCh, err := config.NewRabbitMQConnection(cfg.RabbitMQURL)
+	safeRabbitCh := utils.NewSafeChannel(cfg.RabbitMQURL)
+	err = safeRabbitCh.EnsureConnected()
 	if err != nil {
 		slog.Error("Failed to initialize RabbitMQ connection", "error", err)
 		os.Exit(1)
 	}
-	defer rabbitCh.Close()
-	defer rabbitConn.Close()
-
-	safeRabbitCh := utils.NewSafeChannel(rabbitCh)
+	defer safeRabbitCh.Close()
 
 	// 3. Initialize repositories
 	userRepo := repository.NewUserRepository(pool)
@@ -90,9 +88,9 @@ func main() {
 	notificationHandler := handler.NewNotificationHandler(notificationService, redisClient)
 
 	// 6. Start RabbitMQ workers
-	auditWorker := worker.NewAuditWorker(rabbitCh, auditService)
-	notifWorker := worker.NewNotificationWorker(rabbitCh, notificationService, walletRepo)
-	analyticsWorker := worker.NewAnalyticsWorker(rabbitCh)
+	auditWorker := worker.NewAuditWorker(safeRabbitCh, auditService)
+	notifWorker := worker.NewNotificationWorker(safeRabbitCh, notificationService, walletRepo)
+	analyticsWorker := worker.NewAnalyticsWorker(safeRabbitCh)
 	go auditWorker.Start(ctx)
 	go notifWorker.Start(ctx)
 	go analyticsWorker.Start(ctx)

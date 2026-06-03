@@ -3,22 +3,53 @@ package worker
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"marcceljanara/wallet-ledger-service/internal/utils"
 )
 
 type AnalyticsWorker struct {
-	channel *amqp.Channel
+	rabbitCh *utils.SafeChannel
 }
 
-func NewAnalyticsWorker(channel *amqp.Channel) *AnalyticsWorker {
+func NewAnalyticsWorker(rabbitCh *utils.SafeChannel) *AnalyticsWorker {
 	return &AnalyticsWorker{
-		channel: channel,
+		rabbitCh: rabbitCh,
 	}
 }
 
 func (w *AnalyticsWorker) Start(ctx context.Context) {
-	msgs, err := w.channel.Consume(
+	slog.Info("Analytics worker starting")
+
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("Analytics worker shutting down")
+			return
+		default:
+		}
+
+		ch, err := w.rabbitCh.NewChannel()
+		if err != nil {
+			slog.Error("Analytics worker failed to create channel, retrying...", "error", err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(5 * time.Second):
+				continue
+			}
+		}
+
+		slog.Info("Analytics worker acquired channel, entering consume loop")
+		w.consumeLoop(ctx, ch)
+	}
+}
+
+func (w *AnalyticsWorker) consumeLoop(ctx context.Context, ch *amqp.Channel) {
+	defer ch.Close()
+
+	msgs, err := ch.Consume(
 		"analytics_queue",
 		"",
 		false,
@@ -32,12 +63,9 @@ func (w *AnalyticsWorker) Start(ctx context.Context) {
 		return
 	}
 
-	slog.Info("Analytics worker started successfully")
-
 	for {
 		select {
 		case <-ctx.Done():
-			slog.Info("Analytics worker shutting down")
 			return
 		case msg, ok := <-msgs:
 			if !ok {
