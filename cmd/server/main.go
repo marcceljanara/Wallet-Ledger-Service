@@ -71,6 +71,7 @@ func main() {
 	transactionRepo := repository.NewTransactionRepository(pool)
 	ledgerRepo := repository.NewLedgerRepository(pool)
 	auditRepo := repository.NewAuditRepository(pool)
+	notificationRepo := repository.NewNotificationRepository(pool)
 
 	// 4. Initialize services
 	auditService := service.NewAuditService(auditRepo)
@@ -78,6 +79,7 @@ func main() {
 	walletService := service.NewWalletService(walletRepo)
 	transactionService := service.NewTransactionService(walletRepo, transactionRepo, ledgerRepo, pool, safeRabbitCh)
 	ledgerService := service.NewLedgerService(walletRepo, ledgerRepo)
+	notificationService := service.NewNotificationService(notificationRepo, redisClient)
 
 	// 5. Initialize handlers
 	authHandler := handler.NewAuthHandler(authService, int(cfg.JWTExpiration.Seconds()), cfg.CookieSecure)
@@ -85,10 +87,11 @@ func main() {
 	transactionHandler := handler.NewTransactionHandler(transactionService)
 	ledgerHandler := handler.NewLedgerHandler(ledgerService)
 	auditHandler := handler.NewAuditHandler(auditService)
+	notificationHandler := handler.NewNotificationHandler(notificationService, redisClient)
 
 	// 6. Start RabbitMQ workers
 	auditWorker := worker.NewAuditWorker(rabbitCh, auditService)
-	notifWorker := worker.NewNotificationWorker(rabbitCh)
+	notifWorker := worker.NewNotificationWorker(rabbitCh, notificationService, walletRepo)
 	analyticsWorker := worker.NewAnalyticsWorker(rabbitCh)
 	go auditWorker.Start(ctx)
 	go notifWorker.Start(ctx)
@@ -140,6 +143,12 @@ func main() {
 			protected.GET("/ledger/entries", ledgerHandler.GetLedgerEntries)
 
 			protected.GET("/audit/logs", auditHandler.GetAuditLogs)
+
+			// Notifications routes
+			protected.GET("/notifications", notificationHandler.GetNotifications)
+			protected.PATCH("/notifications/:id/read", notificationHandler.MarkAsRead)
+			protected.DELETE("/notifications", notificationHandler.ClearAll)
+			protected.GET("/notifications/stream", notificationHandler.StreamNotifications)
 
 			// Admin-only routes
 			admin := protected.Group("/admin")
