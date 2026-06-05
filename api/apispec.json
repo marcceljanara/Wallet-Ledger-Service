@@ -1289,11 +1289,11 @@
         "security": [{ "cookieAuth": [] }],
         "responses": {
           "200": {
-            "description": "SSE connection established. Content-Type: text/event-stream.",
+            "description": "SSE connection established. Streams real-time notifications. Each message is a Server-Sent Event with event type 'notification' containing a JSON-stringified object of the Notification schema.",
             "content": {
               "text/event-stream": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/Notification"
                 }
               }
             }
@@ -1445,6 +1445,52 @@
             "minimum": 1,
             "description": "Amount to transfer (must be greater than 0)",
             "example": 250000
+          }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "title",
+          "message",
+          "is_read",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier of the notification",
+            "example": "e5f6a7b8-9012-cdef-1234-567890123456"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID of the user who receives the notification",
+            "example": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+          },
+          "title": {
+            "type": "string",
+            "description": "Notification title",
+            "example": "Transfer Berhasil"
+          },
+          "message": {
+            "type": "string",
+            "description": "Detailed notification message content",
+            "example": "Transfer sebesar Rp 250000 ke dompet WLT-9BZ42YR7E1 berhasil."
+          },
+          "is_read": {
+            "type": "boolean",
+            "description": "Read status of the notification",
+            "example": false
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when the notification was created",
+            "example": "2026-05-28T17:00:00Z"
           }
         }
       }
